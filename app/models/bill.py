@@ -10,6 +10,8 @@ class BillItem(Base):
     bill_id = Column(Integer, ForeignKey("bills.id"))
     vegetable_id = Column(Integer, ForeignKey("vegetables.id"))
     vegetable_name = Column(String) # For historical record
+    tamil_name = Column(String) # For historical record
+    grade = Column(String, nullable=True) # e.g. "Premium Grade", "Local Wholesale"
     qty_kg = Column(Float)
     price = Column(Float)
     subtotal = Column(Float)
@@ -25,7 +27,10 @@ class Bill(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     shop_name = Column(String)
     customer_name = Column(String, nullable=True)
+    subtotal = Column(Float, default=0.0)
+    tax_amount = Column(Float, default=0.0)
     total_amount = Column(Float)
+    billing_type = Column(String, default="Retail") # Wholesale or Retail
     created_at = Column(DateTime, default=datetime.utcnow)
 
     items = relationship("BillItem", back_populates="bill")

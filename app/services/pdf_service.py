@@ -25,6 +25,7 @@ def generate_bill_pdf(bill: Bill) -> BytesIO:
     c.drawString(20*mm, height - 35*mm, f"Bill No: {bill.bill_number}")
     c.drawString(20*mm, height - 40*mm, f"Date: {bill.created_at.strftime('%d-%m-%Y %H:%M')}")
     c.drawString(20*mm, height - 45*mm, f"Customer: {bill.customer_name or 'Regular'}")
+    c.drawString(20*mm, height - 50*mm, f"Type: {bill.billing_type}")
     
     # Table Header
     y = height - 60*mm

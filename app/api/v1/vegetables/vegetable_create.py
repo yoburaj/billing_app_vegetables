@@ -12,8 +12,17 @@ from app.core.auth import get_current_user
 router = APIRouter(prefix="/vegetables")
 
 @router.get("/", response_model=List[VegetableResponse])
-async def get_vegetables(db: Session = Depends(get_db)):
-    return db.query(Vegetable).all()
+async def get_vegetables(
+    search: str = None,
+    category: str = None,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Vegetable)
+    if search:
+        query = query.filter(Vegetable.name.ilike(f"%{search}%") | Vegetable.tamil_name.ilike(f"%{search}%"))
+    if category and category != "All Items":
+        query = query.filter(Vegetable.category == category)
+    return query.all()
 
 @router.get("/top15", response_model=List[TopVegetableResponse])
 async def get_top15_vegetables(
@@ -39,3 +48,9 @@ async def get_top15_vegetables(
                 "usage_count": usage.usage_count
             })
     return result
+
+@router.get("/categories", response_model=List[str])
+async def get_categories(db: Session = Depends(get_db)):
+    categories = db.query(Vegetable.category).distinct().all()
+    # Flatten the result and filter out None
+    return [c[0] for c in categories if c[0]]

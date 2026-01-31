@@ -13,15 +13,15 @@ def signup(user_in: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.username == user_in.username).first():
         raise HTTPException(status_code=400, detail="Username already exists")
 
-    # Hash password (get_password_hash already handles the 72-byte limit via SHA-256)
+    # # Hash password
     # hashed_password = get_password_hash(user_in.password)
-
 
     # Create user
     db_user = User(
         username=user_in.username,
         hashed_password=user_in.password,
         shop_name=user_in.shop_name,
+        mobile_number=user_in.mobile_number,
         role=user_in.role
     )
     db.add(db_user)
