@@ -189,6 +189,19 @@ const Inventory = () => {
         }
     };
 
+    const isUpdatedToday = (updatedAt) => {
+        if (!updatedAt) return false;
+        try {
+            const today = new Date();
+            const updatedDate = new Date(updatedAt);
+            return updatedDate.getDate() === today.getDate() &&
+                updatedDate.getMonth() === today.getMonth() &&
+                updatedDate.getFullYear() === today.getFullYear();
+        } catch (e) {
+            return false;
+        }
+    };
+
     return (
         <div className="inventory-container">
             <div className="inventory-header">
@@ -321,9 +334,18 @@ const Inventory = () => {
                         </div>
 
                         <div className="item-footer">
-                            <div className="trend">
-                                <TrendingUp size={14} />
-                                <span>+5% vs last week</span>
+                            <div className={`trend ${isUpdatedToday(item.priceUpdatedAt) ? 'updated-today' : ''}`}>
+                                {isUpdatedToday(item.priceUpdatedAt) ? (
+                                    <>
+                                        <Check size={14} />
+                                        <span>Today rate updated</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <AlertTriangle size={14} />
+                                        <span>Rate not updated today</span>
+                                    </>
+                                )}
                             </div>
                             <div className="category-tag">{item.category || 'General'}</div>
                         </div>

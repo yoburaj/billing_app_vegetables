@@ -61,5 +61,7 @@ class InventoryResponse(BaseModel):
     expiry_date: Optional[str] = Field(None, alias="expiryDate")
     category: Optional[str] = None
     image: Optional[str] = Field(None, alias="image")
+    price_updated_at: Optional[str] = Field(None, alias="priceUpdatedAt")
+
 
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)

@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, Float, ForeignKey, String
+from sqlalchemy import Column, Integer, Float, ForeignKey, String, DateTime
+from datetime import datetime
 from sqlalchemy.orm import relationship
 from app.database.database import Base
 
@@ -14,6 +15,7 @@ class Inventory(Base):
     stock_kg = Column(Float, nullable=False, default=0.0)
     start_time = Column(String, nullable=True) # e.g., "06:00 AM"
     expiry_date = Column(String, nullable=True) # e.g., "27-Oct-2023"
+    price_updated_at = Column(DateTime, nullable=True, default=datetime.utcnow)
 
     user = relationship("User")
     vegetable = relationship("Vegetable")

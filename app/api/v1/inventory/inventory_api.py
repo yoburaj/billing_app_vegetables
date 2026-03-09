@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from datetime import datetime
 from typing import List
 from app.database.database import get_db
 from app.models.inventory import Inventory
@@ -89,6 +90,7 @@ async def bulk_sync_inventory(
             inv.price_per_kg = item.price
             inv.retail_price = item.price
             inv.stock_kg = item.stock
+            inv.price_updated_at = datetime.utcnow()
         else:
             new_inv = Inventory(
                 user_id=current_user.id,
@@ -134,6 +136,7 @@ async def publish_daily_pricing(
             inv.price_per_kg = item.retail # Default active price is retail
             inv.start_time = pricing_in.start_time
             inv.expiry_date = pricing_in.expiry_date
+            inv.price_updated_at = datetime.utcnow()
             
     db.commit()
     return {"message": "Prices published successfully with activation schedule"}
@@ -165,6 +168,7 @@ async def get_inventory(
             "retailPrice": item.retail_price,
             "startTime": item.start_time,
             "expiryDate": item.expiry_date,
+            "priceUpdatedAt": item.price_updated_at.isoformat() if item.price_updated_at else None,
             "category": veg.category,
             "image": veg.image_url
         })
@@ -185,14 +189,17 @@ async def update_inventory_item(
     if not item:
         raise HTTPException(status_code=404, detail="Item not found in inventory")
     
-    if update_in.price_per_kg is not None:
-        item.price_per_kg = update_in.price_per_kg
-    if update_in.stock_kg is not None:
-        item.stock_kg = update_in.stock_kg
-    if update_in.wholesale_price is not None:
-        item.wholesale_price = update_in.wholesale_price
     if update_in.retail_price is not None:
         item.retail_price = update_in.retail_price
+        item.price_updated_at = datetime.utcnow()
+    if update_in.price_per_kg is not None:
+        item.price_per_kg = update_in.price_per_kg
+        item.price_updated_at = datetime.utcnow()
+    if update_in.wholesale_price is not None:
+        item.wholesale_price = update_in.wholesale_price
+        item.price_updated_at = datetime.utcnow()
+    if update_in.stock_kg is not None:
+        item.stock_kg = update_in.stock_kg
     if update_in.start_time is not None:
         item.start_time = update_in.start_time
     if update_in.expiry_date is not None:
