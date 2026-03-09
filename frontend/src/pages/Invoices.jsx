@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
     FileText,
     Download,
@@ -11,12 +12,14 @@ import {
 import { billingApi } from '../services/api';
 import { format } from 'date-fns';
 import InvoicePreview from '../components/InvoicePreview';
+import { searchWithTanglish } from '../utils/tanglishMap';
 import './Invoices.css';
 
 const Invoices = () => {
+    const location = useLocation();
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState('');
+    const [filter, setFilter] = useState(location.state?.search || '');
     const [showFilterModal, setShowFilterModal] = useState(false);
     const [showDateRangeModal, setShowDateRangeModal] = useState(false);
     const [showViewModal, setShowViewModal] = useState(false);
@@ -73,6 +76,7 @@ const Invoices = () => {
         ...inv,
         billNumber: inv.billNumber || inv.bill_number || '',
         customerName: inv.customerName || inv.customer_name || '',
+        customerMobile: inv.customerMobile || inv.customer_mobile || '',
         mode: inv.mode || inv.billing_type || 'Retail',
         grandTotal: inv.grandTotal || inv.total_amount || 0,
         date: inv.date || inv.created_at || new Date().toISOString()
@@ -82,9 +86,20 @@ const Invoices = () => {
         if (!filter && typeFilter === 'all' && !dateRange.start && !dateRange.end) return true;
 
         const searchLower = filter.toLowerCase();
+        const tanglishEquivalent = searchWithTanglish(filter);
+
         const matchesSearch = !filter || (
             inv.billNumber.toLowerCase().includes(searchLower) ||
-            inv.customerName.toLowerCase().includes(searchLower)
+            inv.customerName.toLowerCase().includes(searchLower) ||
+            inv.customerMobile.includes(searchLower) ||
+            // Check if any vegetable item name matches original or tanglish search
+            (inv.items && inv.items.some(item => {
+                const itemName = (item.name || item.vegetable_name || '').toLowerCase();
+                const itemTamil = (item.tamilName || item.tamil_name || '').toLowerCase();
+                return itemName.includes(searchLower) ||
+                    itemName.includes(tanglishEquivalent) ||
+                    itemTamil.includes(searchLower);
+            }))
         );
 
         const matchesType = typeFilter === 'all' || inv.mode.toLowerCase() === typeFilter.toLowerCase();
@@ -123,7 +138,7 @@ const Invoices = () => {
                     <Search size={20} />
                     <input
                         type="text"
-                        placeholder="Search by Bill # or Customer"
+                        placeholder="Search by Bill #, Customer or Items (e.g. thakkali)"
                         value={filter}
                         onChange={(e) => setFilter(e.target.value)}
                     />

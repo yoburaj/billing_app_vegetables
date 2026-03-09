@@ -24,6 +24,7 @@ class InventoryUpdate(BaseModel):
 class InventoryBulkItem(BaseModel):
     name: str
     tamil_name: str = Field(alias="tamilName")
+    tanglish_name: Optional[str] = Field(None, alias="tanglishName")
     category: str
     price: float
     stock: float = 100.0
@@ -51,6 +52,7 @@ class InventoryResponse(BaseModel):
     vegetable_id: int = Field(alias="vegetableId")
     name: str = Field(alias="name")
     tamil_name: str = Field(alias="tamilName")
+    tanglish_name: Optional[str] = Field(None, alias="tanglishName")
     price: float = Field(alias="price")
     stock: float = Field(alias="stock")
     wholesale_price: float = Field(0.0, alias="wholesalePrice")
@@ -59,5 +61,7 @@ class InventoryResponse(BaseModel):
     expiry_date: Optional[str] = Field(None, alias="expiryDate")
     category: Optional[str] = None
     image: Optional[str] = Field(None, alias="image")
+    price_updated_at: Optional[str] = Field(None, alias="priceUpdatedAt")
+
 
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)

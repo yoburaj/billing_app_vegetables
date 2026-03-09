@@ -19,6 +19,28 @@
     padding: 0.5rem 1rem;
     border-radius: var(--radius-md);
     width: 350px;
+    height: 48px;
+}
+
+@media (max-width: 768px) {
+    .toolbar-card {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .search-bar {
+        width: 100%;
+    }
+
+    .toolbar-actions {
+        width: 100%;
+    }
+
+    .toolbar-actions .btn {
+        flex: 1;
+        height: 44px;
+    }
 }
 
 .search-bar input {
@@ -36,7 +58,8 @@
 
 .table-card {
     padding: 0;
-    overflow: hidden;
+    overflow-x: auto;
+    border-radius: var(--radius-lg);
 }
 
 .invoices-table {

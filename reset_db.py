@@ -5,6 +5,7 @@ from app.models.vegetable import Vegetable
 from app.models.inventory import Inventory
 from app.models.bill import Bill, BillItem
 from app.models.usage import VegetableUsage
+from app.models.customer import Customer
 from app.utils.seed_vegetables import seed_vegetables
 from app.database.database import SessionLocal
 from app.models.user import User, UserRole
@@ -19,6 +20,7 @@ def reset_database():
         conn.execute(text("DROP TABLE IF EXISTS inventory CASCADE;"))
         conn.execute(text("DROP TABLE IF EXISTS vegetable_usage CASCADE;"))
         conn.execute(text("DROP TABLE IF EXISTS vegetables CASCADE;"))
+        conn.execute(text("DROP TABLE IF EXISTS customers CASCADE;"))
         conn.execute(text("DROP TABLE IF EXISTS users CASCADE;"))
         conn.execute(text("DROP TYPE IF EXISTS userrole;"))
         conn.commit()

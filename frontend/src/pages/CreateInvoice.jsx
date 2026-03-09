@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     Plus,
     Trash2,
@@ -8,7 +8,13 @@ import {
     Calendar,
     X,
     ChevronDown,
-    FileText
+    FileText,
+    User,
+    Phone,
+    Check,
+    Store,
+    ShoppingBag,
+    ArrowRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { inventoryApi, billingApi } from '../services/api';
@@ -21,6 +27,9 @@ const CreateInvoice = () => {
     const [inventory, setInventory] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [customerName, setCustomerName] = useState('');
+    const [customerPhone, setCustomerPhone] = useState('');
+    const [isLookingUp, setIsLookingUp] = useState(false);
+    const [lookupStatus, setLookupStatus] = useState(null); // 'found', 'reset', 'not_found'
     const [billingType, setBillingType] = useState('Retail');
     const [discount, setDiscount] = useState(0);
     const [loading, setLoading] = useState(false);
@@ -44,22 +53,33 @@ const CreateInvoice = () => {
     };
 
     const addItem = (veg) => {
-        const existing = items.find(item => item.id === veg.id);
-        if (existing) {
-            setItems(items.map(item =>
-                item.id === veg.id ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.price } : item
-            ));
-        } else {
-            setItems([...items, {
-                id: veg.id,
-                name: veg.name,
-                tamilName: veg.tamilName,
-                price: billingType === 'Wholesale' ? (veg.wholesalePrice || veg.price) : (veg.retailPrice || veg.price),
+        if (!veg) return;
+
+        const id = veg.id || veg.vegetable_id || veg._id || Math.random();
+        const name = veg.name || veg.vegetable_name || 'Unknown Item';
+        const tamil = veg.tamil_name || veg.tamilName || '';
+        const price = billingType === 'Wholesale'
+            ? (veg.wholesale_price || veg.wholesalePrice || veg.price || 0)
+            : (veg.retail_price || veg.retailPrice || veg.price || 0);
+
+        setItems(prev => {
+            const existing = prev.find(i => i.id === id);
+            if (existing) {
+                return prev.map(i => i.id === id
+                    ? { ...i, quantity: i.quantity + 1, total: (i.quantity + 1) * i.price }
+                    : i
+                );
+            }
+            return [...prev, {
+                id,
+                name,
+                tamilName: tamil,
+                price,
                 quantity: 1,
-                total: billingType === 'Wholesale' ? (veg.wholesalePrice || veg.price) : (veg.retailPrice || veg.price),
+                total: price,
                 unit: 'kg'
-            }]);
-        }
+            }];
+        });
         setSearchTerm('');
     };
 
@@ -69,13 +89,13 @@ const CreateInvoice = () => {
 
     const updateQuantity = (id, newQty) => {
         if (newQty < 0.1) return;
-        setItems(items.map(item =>
+        setItems(prevItems => prevItems.map(item =>
             item.id === id ? { ...item, quantity: Math.round(newQty * 100) / 100, total: (Math.round(newQty * 100) / 100) * item.price } : item
         ));
     };
 
     const updateItemTotal = (id, newTotal) => {
-        setItems(items.map(item =>
+        setItems(prevItems => prevItems.map(item =>
             item.id === id ? {
                 ...item,
                 total: newTotal,
@@ -85,7 +105,7 @@ const CreateInvoice = () => {
     };
 
     const updatePrice = (id, newPrice) => {
-        setItems(items.map(item =>
+        setItems(prevItems => prevItems.map(item =>
             item.id === id ? {
                 ...item,
                 price: newPrice,
@@ -98,15 +118,38 @@ const CreateInvoice = () => {
     const calculateTax = () => calculateSubtotal() * 0; // Assuming 0% tax for now
     const calculateTotal = () => Math.max(0, calculateSubtotal() + calculateTax() - discount);
 
+    const handlePhoneChange = async (value) => {
+        setCustomerPhone(value);
+        setLookupStatus(null);
+
+        // Auto-lookup if 10 digits
+        if (value.length === 10) {
+            setIsLookingUp(true);
+            try {
+                const response = await billingApi.lookupCustomer(value);
+                if (response.data) {
+                    setCustomerName(response.data.name);
+                    setLookupStatus('found');
+                }
+            } catch (_error) {
+                console.log('Customer not found');
+                setLookupStatus('not_found');
+            } finally {
+                setIsLookingUp(false);
+            }
+        }
+    };
+
     const handleCreateBill = async () => {
         if (items.length === 0) return;
         setLoading(true);
         try {
             const billData = {
                 customer_name: customerName,
+                customer_mobile: customerPhone,
                 billing_type: billingType,
                 items: items.map(item => ({
-                    vegetable_id: item.id,
+                    id: item.id,
                     name: item.name,
                     tamilName: item.tamilName,
                     quantity: item.quantity,
@@ -133,43 +176,41 @@ const CreateInvoice = () => {
     };
 
     // Enhanced filter with Tanglish support
-    const PRIORITY_ORDER = ['Green Chili', 'Tomato', 'Onion', 'Potato', 'Green Beans', 'Carrot'];
+    const filteredInventory = useMemo(() => {
+        return inventory
+            .filter(veg => {
+                if (!searchTerm) return true;
+                const lowerSearch = searchTerm.toLowerCase();
+                const tanglishEquivalent = searchWithTanglish(searchTerm);
 
-    const filteredInventory = inventory
-        .filter(veg => {
-            if (!searchTerm) return true;
-            const lowerSearch = searchTerm.toLowerCase();
-            const tanglishEquivalent = searchWithTanglish(searchTerm);
+                return veg.name.toLowerCase().includes(lowerSearch) ||
+                    veg.name.toLowerCase().includes(tanglishEquivalent) ||
+                    (veg.tamilName && veg.tamilName.toLowerCase().includes(lowerSearch));
+            })
+            .sort((a, b) => {
+                const getPriorityIndex = (name) => {
+                    const lowName = name.toLowerCase();
+                    if (lowName.includes('chili') || lowName.includes('chilly')) return 0;
+                    if (lowName.includes('tomato')) return 1;
+                    if (lowName.includes('onion')) return 2;
+                    if (lowName.includes('potato')) return 3;
+                    if (lowName.includes('beans')) return 4;
+                    if (lowName.includes('carrot')) return 5;
+                    return 100;
+                };
 
-            return veg.name.toLowerCase().includes(lowerSearch) ||
-                veg.name.toLowerCase().includes(tanglishEquivalent) ||
-                (veg.tamilName && veg.tamilName.toLowerCase().includes(lowerSearch));
-        })
-        .sort((a, b) => {
-            const getPriorityIndex = (name) => {
-                if (name === 'Green Chili' || name === 'Green Chilly') return 0;
-                if (name === 'Tomato') return 1;
-                if (name === 'Onion') return 2;
-                if (name === 'Potato') return 3;
-                if (name === 'Green Beans' || name === 'Beans') return 4;
-                if (name === 'Carrot') return 5;
-                return -1;
-            };
+                const indexA = getPriorityIndex(a.name);
+                const indexB = getPriorityIndex(b.name);
 
-            const indexA = getPriorityIndex(a.name);
-            const indexB = getPriorityIndex(b.name);
-
-            if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-            if (indexA !== -1) return -1;
-            if (indexB !== -1) return 1;
-
-            return a.name.localeCompare(b.name);
-        });
+                if (indexA !== indexB) return indexA - indexB;
+                return a.name.localeCompare(b.name);
+            });
+    }, [inventory, searchTerm]);
 
     // Close dropdown on click outside
     useEffect(() => {
         const handleClickOutside = (e) => {
-            if (!e.target.closest('.search-box')) {
+            if (!e.target.closest('.search-box-premium')) {
                 setShowResults(false);
             }
         };
@@ -180,20 +221,43 @@ const CreateInvoice = () => {
     return (
         <div className="invoice-page">
             <div className="invoice-left">
-                <div className="card customer-card">
+
+                <div className="card customer-card-premium glass">
+                    <div className="card-header-minimal">
+                        <User size={16} />
+                        <span>CUSTOMER INFORMATION</span>
+                    </div>
                     <div className="form-grid">
                         <div className="form-group">
+                            <label>Mobile Number</label>
+                            <div className={`input-with-icon ${lookupStatus}`}>
+                                <Phone size={18} className="field-icon" />
+                                <input
+                                    type="tel"
+                                    placeholder="Enter 10-digit mobile"
+                                    value={customerPhone}
+                                    maxLength={10}
+                                    onChange={(e) => handlePhoneChange(e.target.value.replace(/\D/g, ''))}
+                                />
+                                {isLookingUp && <div className="loader-small"></div>}
+                                {lookupStatus === 'found' && <Check className="status-icon success" size={16} />}
+                            </div>
+                        </div>
+                        <div className="form-group">
                             <label>Customer Name</label>
-                            <input
-                                type="text"
-                                placeholder="Enter customer name"
-                                value={customerName}
-                                onChange={(e) => setCustomerName(e.target.value)}
-                            />
+                            <div className="input-with-icon">
+                                <User size={18} className="field-icon" />
+                                <input
+                                    type="text"
+                                    placeholder="Enter customer name"
+                                    value={customerName}
+                                    onChange={(e) => setCustomerName(e.target.value)}
+                                />
+                            </div>
                         </div>
                         <div className="form-group">
                             <label>Billing Type</label>
-                            <div className="toggle-group">
+                            <div className="toggle-group-premium">
                                 <button
                                     className={billingType === 'Retail' ? 'active' : ''}
                                     onClick={() => setBillingType('Retail')}
@@ -207,171 +271,187 @@ const CreateInvoice = () => {
                     </div>
                 </div>
 
-                <div className="card items-card">
+                <div className="card items-card-premium glass">
                     <div className="table-header">
-                        <h3>Bill Items</h3>
-                        <div className="search-box">
+                        <div className="section-title">
+                            <ShoppingBag size={18} />
+                            <h3>Bill Items</h3>
+                        </div>
+                        <div className="search-box-premium">
                             <Search size={18} />
                             <input
                                 type="text"
-                                placeholder="Select or Search vegetable..."
+                                placeholder="Search vegetable..."
                                 value={searchTerm}
                                 onChange={(e) => {
                                     setSearchTerm(e.target.value);
                                     setShowResults(true);
                                 }}
                                 onFocus={() => setShowResults(true)}
-                                onClick={() => setShowResults(true)}
-                            />
-                            <ChevronDown
-                                size={18}
-                                className={`dropdown-arrow ${showResults ? 'open' : ''}`}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowResults(!showResults);
-                                }}
                             />
                             {showResults && (
-                                <div className="search-results">
+                                <div className="search-results-floating card glass">
                                     {filteredInventory.length > 0 ? (
-                                        filteredInventory.map(veg => (
-                                            <div key={veg.id} className="search-item" onClick={() => {
+                                        filteredInventory.map((veg, index) => (
+                                            <div key={veg.id || index} className="search-item" onMouseDown={(e) => {
+                                                e.stopPropagation();
+                                                e.preventDefault();
                                                 addItem(veg);
                                                 setShowResults(false);
                                             }}>
-                                                <div className="item-img">🥬</div>
-                                                <div className="item-details">
-                                                    <p>{veg.name} ({veg.tamilName})</p>
-                                                    <span>₹{billingType === 'Wholesale' ? (veg.wholesalePrice || veg.price) : (veg.retailPrice || veg.price)}/kg</span>
+                                                <div className="item-icon-circle">
+                                                    <Store size={14} />
                                                 </div>
-                                                <Plus size={18} />
+                                                <div className="item-details">
+                                                    <p className="primary-name">{veg.name}</p>
+                                                    <p className="secondary-name">{veg.tamil_name || veg.tamilName}</p>
+                                                </div>
+                                                <div className="item-price-tag">
+                                                    ₹{billingType === 'Wholesale'
+                                                        ? (veg.wholesale_price || veg.wholesalePrice || veg.price || 0)
+                                                        : (veg.retail_price || veg.retailPrice || veg.price || 0)}
+                                                </div>
+                                                <Plus size={16} className="add-plus" />
                                             </div>
                                         ))
                                     ) : (
-                                        <div className="search-item search-empty">
-                                            <p style={{ color: 'var(--text-secondary)', textAlign: 'center' }}>No vegetables found</p>
-                                        </div>
+                                        <div className="search-empty">No vegetables found</div>
                                     )}
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    <table className="items-table">
-                        <thead>
-                            <tr>
-                                <th>Vegetable</th>
-                                <th>Price/kg</th>
-                                <th>Quantity (kg)</th>
-                                <th>Total</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {items.map(item => (
-                                <tr key={item.id}>
-                                    <td>
-                                        <div className="item-name-info">
-                                            <div className="name-main">{item.name}</div>
-                                            <div className="name-sub">{item.tamilName}</div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div className="price-control-wrapper">
-                                            <span>₹</span>
-                                            <input
-                                                type="number"
-                                                className="price-manual-input"
-                                                value={item.price}
-                                                onChange={(e) => updatePrice(item.id, parseFloat(e.target.value) || 0)}
-                                                onFocus={(e) => e.target.select()}
-                                            />
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div className="qty-control">
-                                            <button onClick={() => updateQuantity(item.id, item.quantity - 0.25)}>-</button>
-                                            <div className="qty-display-wrapper">
+                    <div className="table-wrapper">
+                        <table className="items-table-premium">
+                            <thead>
+                                <tr>
+                                    <th className="col-name">Vegetable</th>
+                                    <th className="col-price">Price/kg</th>
+                                    <th className="col-qty">Quantity</th>
+                                    <th className="col-total">Total</th>
+                                    <th className="col-actions"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {items.map((item, index) => (
+                                    <tr key={`${item.id}-${index}`} className="item-row">
+                                        <td className="col-name">
+                                            <div className="item-display">
+                                                <div className="name-main">{item.name}</div>
+                                                <div className="name-sub">{item.tamilName}</div>
+                                            </div>
+                                        </td>
+                                        <td className="col-price">
+                                            <div className="input-currency-box">
+                                                <span className="currency">₹</span>
                                                 <input
                                                     type="number"
-                                                    value={item.quantity}
-                                                    step="0.05"
-                                                    onChange={(e) => updateQuantity(item.id, parseFloat(e.target.value))}
+                                                    value={item.price}
+                                                    onChange={(e) => updatePrice(item.id, parseFloat(e.target.value) || 0)}
                                                     onFocus={(e) => e.target.select()}
                                                 />
-                                                <span className="qty-unit-label">
-                                                    {item.quantity < 1 ? 'g' : 'kg'}
-                                                </span>
                                             </div>
-                                            <button onClick={() => updateQuantity(item.id, item.quantity + 0.25)}>+</button>
-                                        </div>
-                                        {item.quantity < 1 && (
-                                            <div className="qty-hint">{item.quantity * 1000} g</div>
-                                        )}
-                                    </td>
-                                    <td>
-                                        <div className="total-control-wrapper">
-                                            <span>₹</span>
-                                            <input
-                                                type="number"
-                                                className="total-manual-input"
-                                                value={item.total}
-                                                onChange={(e) => updateItemTotal(item.id, parseFloat(e.target.value) || 0)}
-                                                onFocus={(e) => e.target.select()}
-                                            />
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <button className="remove-btn" onClick={() => removeItem(item.id)}>
-                                            <Trash2 size={18} />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                            {items.length === 0 && (
-                                <tr>
-                                    <td colSpan="5" className="empty-row">No items added. Search and add vegetables.</td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
+                                        </td>
+                                        <td className="col-qty">
+                                            <div className="qty-stepper-premium">
+                                                <button className="minus" onClick={() => updateQuantity(item.id, item.quantity - 0.25)}>-</button>
+                                                <div className="qty-input-group">
+                                                    <input
+                                                        type="number"
+                                                        value={item.quantity}
+                                                        step="0.05"
+                                                        onChange={(e) => updateQuantity(item.id, parseFloat(e.target.value))}
+                                                        onFocus={(e) => e.target.select()}
+                                                    />
+                                                    <span className="unit">{item.quantity < 1 ? 'g' : 'kg'}</span>
+                                                </div>
+                                                <button className="plus" onClick={() => updateQuantity(item.id, item.quantity + 0.25)}>+</button>
+                                            </div>
+                                        </td>
+                                        <td className="col-total">
+                                            <div className="item-total-display">
+                                                <span className="currency">₹</span>
+                                                <input
+                                                    type="number"
+                                                    value={item.total}
+                                                    onChange={(e) => updateItemTotal(item.id, parseFloat(e.target.value) || 0)}
+                                                    onFocus={(e) => e.target.select()}
+                                                />
+                                            </div>
+                                        </td>
+                                        <td className="col-actions">
+                                            <button className="delete-action" onClick={() => removeItem(item.id)}>
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {items.length === 0 && (
+                                    <tr>
+                                        <td colSpan="5" className="empty-state">
+                                            <div className="empty-content">
+                                                <ShoppingBag size={48} />
+                                                <p>Your cart is empty</p>
+                                                <span>Search or select vegetables above to start billing</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
             <div className="invoice-right">
-                <div className="card summary-card sticky-summary">
-                    <h3>Summary</h3>
-                    <div className="summary-details">
-                        <div className="summary-row">
-                            <span>Subtotal</span>
-                            <span>₹{calculateSubtotal().toFixed(2)}</span>
+                <div className="card summary-card-premium glass sticky-summary">
+                    <div className="card-header-minimal">
+                        <Store size={16} />
+                        <span>BILL SUMMARY</span>
+                    </div>
+
+                    <div className="summary-list">
+                        <div className="summary-item">
+                            <span className="label">Items Count</span>
+                            <span className="value-badge">{items.length}</span>
                         </div>
-                        <div className="summary-row">
-                            <span>Tax (0%)</span>
-                            <span>₹{calculateTax().toFixed(2)}</span>
+                        <div className="summary-item">
+                            <span className="label">Subtotal</span>
+                            <span className="value">₹{calculateSubtotal().toFixed(2)}</span>
                         </div>
-                        <div className="summary-row">
-                            <span>Discount</span>
-                            <div className="discount-input-wrapper">
-                                <span>- ₹</span>
+                        <div className="summary-item">
+                            <span className="label">Tax (0%)</span>
+                            <span className="value">₹{calculateTax().toFixed(2)}</span>
+                        </div>
+                        <div className="summary-item discount-row">
+                            <span className="label">Discount</span>
+                            <div className="discount-input-premium">
+                                <span>₹</span>
                                 <input
                                     type="number"
                                     min="0"
+                                    placeholder="Enter amount"
                                     value={discount}
                                     onChange={(e) => setDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
-                                    className="discount-input"
                                 />
                             </div>
                         </div>
-                        <div className="summary-row total">
-                            <span>Total Amount</span>
-                            <span>₹{calculateTotal().toFixed(2)}</span>
+                    </div>
+
+                    <div className="grand-total-section">
+                        <div className="total-top">
+                            <span className="total-label">Payable Amount</span>
+                        </div>
+                        <div className="total-value-main">
+                            <span className="currency">₹</span>
+                            <span className="amount">{calculateTotal().toFixed(2)}</span>
                         </div>
                     </div>
 
-                    <div className="action-buttons">
+                    <div className="summary-actions">
                         <button
-                            className="btn btn-primary full-width"
+                            className="btn btn-primary-gradient full-width"
                             onClick={handleCreateBill}
                             disabled={loading || items.length === 0}
                         >
@@ -379,14 +459,13 @@ const CreateInvoice = () => {
                             <Save size={18} />
                         </button>
                         <button
-                            className="btn btn-outline full-width"
+                            className="btn btn-outline-premium full-width"
                             onClick={() => setShowPreview(true)}
                             disabled={items.length === 0}
                         >
                             Print Preview
                             <Printer size={18} />
                         </button>
-
                     </div>
                 </div>
             </div>
@@ -395,6 +474,7 @@ const CreateInvoice = () => {
                 <InvoicePreview
                     data={success && savedBill ? savedBill : {
                         customerName,
+                        customerPhone,
                         billingType,
                         items,
                         subtotal: calculateSubtotal(),
@@ -404,41 +484,39 @@ const CreateInvoice = () => {
                     }}
                     onClose={() => {
                         setShowPreview(false);
-                        if (success) setSuccess(false); // Close both if printing from success
+                        if (success) setSuccess(false);
                     }}
                 />
             )}
 
             {success && (
-                <div className="modal-overlay">
-                    <div className="card modal-content success-modal">
-                        <div className="success-lottie">
-                            <div className="success-icon">✅</div>
+                <div className="modal-overlay-premium blur">
+                    <div className="card success-modal-premium glass">
+                        <div className="success-header">
+                            <div className="success-lottie-icon">
+                                <Plus size={32} className="check-main" />
+                            </div>
+                            <h2>Bill Saved!</h2>
+                            <p>Invoice <strong>#{savedBill?.billNumber || savedBill?.bill_number}</strong> recorded.</p>
                         </div>
-                        <h2>Bill Saved Successfully!</h2>
-                        <p>Invoice <strong>{savedBill?.billNumber || savedBill?.bill_number}</strong> has been recorded.</p>
 
-                        <div className="modal-actions-grid">
-                            <button className="btn btn-primary" onClick={() => {
-                                setShowPreview(true);
-                                // Note: we'll show the saved bill in the preview
-                            }}>
+                        <div className="modal-actions-list">
+                            <button className="btn btn-primary-gradient" onClick={() => setShowPreview(true)}>
                                 <Printer size={18} /> Print Invoice
                             </button>
-                            <button className="btn btn-outline" onClick={() => setSuccess(false)}>
-                                <Plus size={18} /> Create New
+                            <button className="btn btn-outline-premium" onClick={() => setSuccess(false)}>
+                                <Plus size={18} /> New Bill
                             </button>
                             <button
-                                className="btn btn-outline"
+                                className="btn btn-text-link"
                                 onClick={() => {
                                     setSuccess(false);
                                     navigate('/invoices');
                                 }}
                             >
-                                <FileText size={18} /> View History
+                                View History <ArrowRight size={14} />
                             </button>
                         </div>
-                        <button className="close-modal" onClick={() => setSuccess(false)}><X size={20} /></button>
                     </div>
                 </div>
             )}
@@ -447,3 +525,4 @@ const CreateInvoice = () => {
 };
 
 export default CreateInvoice;
+

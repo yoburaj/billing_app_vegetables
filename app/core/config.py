@@ -16,3 +16,4 @@ DATABASE_URL = os.getenv(
 )
 
 SECRET_KEY = os.getenv("SECRET_KEY")
+AES_KEY = os.getenv("AES_KEY")

@@ -27,6 +27,7 @@ class Bill(Base):
     user_id = Column(Integer, ForeignKey("users.id"))
     shop_name = Column(String)
     customer_name = Column(String, nullable=True)
+    customer_mobile = Column(String(15), nullable=True, index=True)
     subtotal = Column(Float, default=0.0)
     tax_amount = Column(Float, default=0.0)
     total_amount = Column(Float)

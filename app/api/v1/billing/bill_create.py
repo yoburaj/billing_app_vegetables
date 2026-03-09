@@ -42,6 +42,7 @@ async def create_bill(
             user_id=current_user.id,
             shop_name=bill_in.shop_name or current_user.shop_name or "Suji Vegetables",
             customer_name=bill_in.customer_name,
+            customer_mobile=bill_in.customer_mobile,
             subtotal=bill_in.subtotal,
             tax_amount=bill_in.tax_amount,
             discount_amount=bill_in.discount_amount,
@@ -49,6 +50,21 @@ async def create_bill(
             billing_type=bill_in.billing_type
         )
         db.add(db_bill)
+        
+        # Sync with Customer table
+        if bill_in.customer_mobile:
+            from app.models.customer import Customer
+            existing_customer = db.query(Customer).filter(Customer.mobile_number == bill_in.customer_mobile).first()
+            if existing_customer:
+                existing_customer.name = bill_in.customer_name or existing_customer.name
+                existing_customer.updated_at = datetime.utcnow()
+            else:
+                new_customer = Customer(
+                    name=bill_in.customer_name or "Unknown",
+                    mobile_number=bill_in.customer_mobile
+                )
+                db.add(new_customer)
+            
         db.flush() # Get bill ID
         
         for item in bill_in.items:
@@ -119,6 +135,7 @@ async def create_bill(
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
 
 
 @router.put("/{bill_id}", response_model=BillResponse)
@@ -238,6 +255,17 @@ async def get_billing_history(
     current_user: User = Depends(get_current_user)
 ):
     return db.query(Bill).filter(Bill.user_id == current_user.id).order_by(Bill.created_at.desc()).all()
+
+@router.get("/{bill_id}", response_model=BillResponse)
+async def get_bill(
+    bill_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    bill = db.query(Bill).filter(Bill.id == bill_id, Bill.user_id == current_user.id).first()
+    if not bill:
+        raise HTTPException(status_code=404, detail="Bill not found")
+    return bill
 
 @router.get("/{bill_id}/pdf")
 async def get_bill_pdf_endpoint(

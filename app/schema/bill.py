@@ -15,6 +15,7 @@ class BillItemCreate(BaseModel):
 
 class BillCreate(BaseModel):
     customer_name: Optional[str] = Field(None, alias="customerName")
+    customer_mobile: Optional[str] = Field(None, alias="customerMobile")
     billing_type: str = Field("Retail", alias="mode")
     shop_name: Optional[str] = Field(None, alias="shopName")
     user_name: Optional[str] = Field(None, alias="userName")
@@ -55,6 +56,7 @@ class BillResponse(BaseModel):
     bill_number: str = Field(alias="billNumber")
     shop_name: Optional[str] = Field(None, alias="shopName")
     customer_name: Optional[str] = Field(None, alias="customerName")
+    customer_mobile: Optional[str] = Field(None, alias="customerMobile")
     subtotal: float = 0.0
     tax_amount: float = Field(0.0, alias="taxAmount")
     discount_amount: float = Field(0.0, alias="discountAmount")

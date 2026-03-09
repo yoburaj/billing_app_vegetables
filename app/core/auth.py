@@ -1,55 +1,124 @@
+
+import os
+import hashlib
+import asyncio
 from datetime import datetime, timedelta
 from typing import Optional, List
-import hashlib
+from base64 import b64encode, b64decode
 
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from app.database.database import get_db
 from app.models.user import User, UserRole
-from app.core import config  
+from app.core import config
 
-SECRET_KEY = config.SECRET_KEY   
+SECRET_KEY = config.SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 1 day
 
-
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-)
+AES_KEY_HEX = config.AES_KEY
+if not AES_KEY_HEX:
+    # Fallback to a random key if not set, though it should be set
+    AES_KEY = os.urandom(32)
+else:
+    AES_KEY = bytes.fromhex(AES_KEY_HEX)
 
 # OAuth2
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
+# --- Password Hashing Logic ---
 
-def _pre_hash_password(password: str) -> str:
-    """
-    SHA-256 pre-hash to safely bypass bcrypt's 72-byte limit.
-    Returns hex digest (64 chars).
-    """
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
-
-
-def get_password_hash(password: str) -> str:
-    """
-    Hash password using bcrypt with SHA-256 pre-hashing.
-    """
-    return pwd_context.hash(_pre_hash_password(password))
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """
-    Verify password using the same SHA-256 pre-hash.
-    """
-    return pwd_context.verify(
-        _pre_hash_password(plain_password),
-        hashed_password
+def hash_password_sync(password: str) -> str:
+    """Synchronous version of password hashing."""
+    salt = os.urandom(16)
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+        backend=default_backend()
     )
+    hashed_password = kdf.derive(password.encode())
+    return b64encode(salt + hashed_password).decode('utf-8')
 
+async def hash_password(password: str) -> str:
+    """Asynchronous wrapper for password hashing."""
+    return await asyncio.to_thread(hash_password_sync, password)
+
+def verify_password_sync(plain_password: str, hashed_password: str) -> bool:
+    """Synchronous version of password verification."""
+    try:
+        decoded = b64decode(hashed_password.encode('utf-8'))
+        salt, stored_hash = decoded[:16], decoded[16:]
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,
+            backend=default_backend()
+        )
+        kdf.verify(plain_password.encode(), stored_hash)
+        return True
+    except Exception:
+        return False
+
+async def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Asynchronous wrapper for password verification."""
+    return await asyncio.to_thread(verify_password_sync, plain_password, hashed_password)
+
+# Aliases for compatibility with existing code
+def get_password_hash(password: str) -> str:
+    return hash_password_sync(password)
+
+def verify_password_compat(plain_password: str, hashed_password: str) -> bool:
+    return verify_password_sync(plain_password, hashed_password)
+
+
+# --- Phone Hashing/Encryption Logic ---
+
+def hash_phone_sync(phone: str) -> str:
+    """One-way hash for phone number."""
+    salt = os.urandom(16)
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+        backend=default_backend()
+    )
+    hashed_phone = kdf.derive(phone.encode())
+    return b64encode(salt + hashed_phone).decode('utf-8')
+
+async def hash_phone(phone: str) -> str:
+    return await asyncio.to_thread(hash_phone_sync, phone)
+
+async def encrypt_phone(phone: str) -> str:
+    if not isinstance(phone, str):
+        phone = str(phone)
+    aesgcm = AESGCM(AES_KEY)
+    nonce = os.urandom(12)
+    encrypted_data = aesgcm.encrypt(nonce, phone.encode(), None)
+    return b64encode(nonce + encrypted_data).decode("utf-8")
+
+async def decrypt_phone(encrypted_phone: str) -> str:
+    try:
+        aesgcm = AESGCM(AES_KEY)
+        encrypted_data = b64decode(encrypted_phone)
+        nonce, ciphertext = encrypted_data[:12], encrypted_data[12:]
+        decrypted_data = aesgcm.decrypt(nonce, ciphertext, None)
+        return decrypted_data.decode("utf-8")
+    except Exception:
+        return encrypted_phone
+
+
+# --- JWT Logic ---
 
 def create_access_token(
     data: dict,
@@ -89,9 +158,6 @@ async def get_current_user(
 
 
 def check_role(roles: List[UserRole]):
-    """
-    Dependency to check if current user has one of the allowed roles.
-    """
     def role_checker(
         current_user: User = Depends(get_current_user)
     ) -> User:

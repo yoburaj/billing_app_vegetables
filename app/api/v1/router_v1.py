@@ -4,15 +4,21 @@ from app.api.v1.vegetables.price_update import router as price_router
 from app.api.v1.billing.bill_create import router as bill_router
 from app.api.v1.auth.login import router as login_router
 from app.api.v1.auth.signup import router as signup_router
+from app.api.v1.auth.forgot_password import router as forgot_password_router
 from app.api.v1.admin.admin import router as admin_router
 from app.api.v1.inventory.inventory_api import router as inventory_router
+from app.api.v1.billing.customer_lookup import router as customer_router
+from app.api.v1.billing.customer_api import router as customer_stats_router
 
 router = APIRouter(prefix="/api/v1")
 
 router.include_router(login_router, prefix="/auth", tags=["Authentication"])
 router.include_router(signup_router, prefix="/auth", tags=["Authentication"])
+router.include_router(forgot_password_router, prefix="/auth", tags=["Authentication"])
 router.include_router(admin_router, prefix="/admin", tags=["Admin"])
 router.include_router(inventory_router, tags=["Inventory"])
 router.include_router(veg_router, tags=["Vegetables"])
 router.include_router(price_router, tags=["Vegetables"])
 router.include_router(bill_router, tags=["Billing"])
+router.include_router(customer_router, tags=["Billing"])
+router.include_router(customer_stats_router, tags=["Billing"])

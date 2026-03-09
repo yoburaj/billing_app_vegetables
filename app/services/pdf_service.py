@@ -96,6 +96,7 @@ def generate_bill_pdf(bill: Bill) -> BytesIO:
 
     # ---- BILL META SECTION ----
     customer = escape(bill.customer_name or 'Walking Customer')
+    customer_mobile = escape(bill.customer_mobile or 'N/A')
     bill_no = escape(bill.bill_number)
     bill_type = escape(bill.billing_type)
     bill_date = bill.created_at.strftime("%d/%m/%Y %H:%M")
@@ -106,8 +107,12 @@ def generate_bill_pdf(bill: Bill) -> BytesIO:
             Paragraph(f"<b>Bill No:</b> {bill_no}", tamil_style)
         ],
         [
-            Paragraph(f"<b>Type:</b> {bill_type}", tamil_style),
+            Paragraph(f"<b>Contact:</b> {customer_mobile}", tamil_style),
             Paragraph(f"<b>Date:</b> {bill_date}", tamil_style)
+        ],
+        [
+            Paragraph(f"<b>Type:</b> {bill_type}", tamil_style),
+            ""
         ]
     ]
     meta_table = Table(meta_data, colWidths=[110 * mm, 70 * mm])

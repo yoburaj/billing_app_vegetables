@@ -252,3 +252,48 @@ coverage/
 *.tmp
 *.temp
 .early.coverage
+
+# Database backups and exports
+*.sql
+*.sql.gz
+*.dump
+
+# IDE backup files
+.vscode/settings.json
+.vscode/launch.json
+
+# Python virtual environment variants
+.env.example
+pipenv.lock
+poetry.lock
+requirements-dev.txt
+
+# Temporary upload/download directories
+uploads/
+downloads/
+temp/
+tmp/
+
+# Application-specific
+config/local_settings.py
+secrets.json
+.credentials
+credentials/
+
+# CSV/Excel reports (if generated)
+reports/
+*.csv
+*.xlsx
+*.xls
+
+# API keys and tokens
+.apikey
+tokens.json
+
+# Docker (if applicable)
+.dockerignore
+docker-compose.override.yml
+
+# Backup files from editors
+*.orig
+*.bkp

@@ -47,6 +47,8 @@ export const authApi = {
     });
   },
   signup: (userData) => api.post('/auth/signup', userData),
+  forgotPassword: (data) => api.post('/auth/forgot-password', data),
+  resetPassword: (data) => api.post('/auth/reset-password', data),
 };
 
 export const billingApi = {
@@ -55,6 +57,8 @@ export const billingApi = {
   getHistory: () => api.get('/billing/history'),
   getDashboardStats: () => api.get('/billing/dashboard/stats'),
   getBillPdf: (id) => api.get(`/billing/${id}/pdf`, { responseType: 'blob' }),
+  lookupCustomer: (phone) => api.get(`/customers/lookup/${phone}`),
+  getCustomerStats: () => api.get('/customers/stats'),
 };
 
 export const inventoryApi = {

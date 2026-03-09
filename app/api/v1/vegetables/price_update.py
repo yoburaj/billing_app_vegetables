@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from datetime import datetime
 from typing import List
 from app.database.database import get_db
 from app.models.vegetable import Vegetable
@@ -35,6 +36,7 @@ async def bulk_update_prices(
             inv.wholesale_price = price_data.wholesale_price
             inv.retail_price = price_data.retail_price
             inv.price_per_kg = price_data.retail_price
+            inv.price_updated_at = datetime.utcnow()
     
     db.commit()
     return {"message": "Prices updated successfully"}
