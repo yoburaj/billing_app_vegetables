@@ -128,8 +128,13 @@ const MainLayout = ({ children }) => {
             {/* Main Content */}
             <main className="main-content">
                 <header className="topbar">
-                    <div className="page-title">
-                        <h2>{menuItems.find(item => item.path === location.pathname)?.name || 'VegBilling'}</h2>
+                    <div className="topbar-left">
+                        <button className="mobile-menu-trigger" onClick={() => setSidebarOpen(true)}>
+                            <Menu size={24} />
+                        </button>
+                        <div className="page-title">
+                            <h2>{menuItems.find(item => item.path === location.pathname)?.name || 'VegBilling'}</h2>
+                        </div>
                     </div>
                     <div className="topbar-actions">
                         <button className="notification-btn">
@@ -141,6 +146,14 @@ const MainLayout = ({ children }) => {
                 <section className="page-content">
                     {children}
                 </section>
+
+                {/* Mobile Overlay */}
+                {isSidebarOpen && (
+                    <div
+                        className="mobile-overlay"
+                        onClick={() => setSidebarOpen(false)}
+                    ></div>
+                )}
             </main>
 
             {isEditingProfile && (

@@ -100,9 +100,11 @@
     cursor: pointer;
 }
 
-.auth-utils a {
+.auth-utils a,
+.auth-utils .fp-link {
     color: var(--primary-color);
     font-weight: 600;
+    text-decoration: none;
 }
 
 .login-btn {

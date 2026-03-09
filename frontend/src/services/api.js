@@ -47,6 +47,8 @@ export const authApi = {
     });
   },
   signup: (userData) => api.post('/auth/signup', userData),
+  forgotPassword: (data) => api.post('/auth/forgot-password', data),
+  resetPassword: (data) => api.post('/auth/reset-password', data),
 };
 
 export const billingApi = {

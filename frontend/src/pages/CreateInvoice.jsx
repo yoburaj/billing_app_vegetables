@@ -221,12 +221,6 @@ const CreateInvoice = () => {
     return (
         <div className="invoice-page">
             <div className="invoice-left">
-                <header className="page-header">
-                    <div className="title-area">
-                        <h1>New Invoice</h1>
-                        <p>Create a fresh bill for your customer</p>
-                    </div>
-                </header>
 
                 <div className="card customer-card-premium glass">
                     <div className="card-header-minimal">
